@@ -1,0 +1,149 @@
+buildscript {
+  repositories {
+    jcenter()
+    maven {
+      url 'https://oss.sonatype.org/content/repositories/snapshots/'
+    }
+  }
+
+  dependencies {
+    classpath 'co.present.rpc:compiler:0.2-SNAPSHOT'
+  }
+
+  ext.versions = [
+      'okhttp': '3.9.1',
+      'slf4j': '1.7.25',
+      'wire': '2.2.0',
+  ]
+
+  ext.deps = [
+      'okhttp': "com.squareup.okhttp3:okhttp:${versions.okhttp}",
+      'slf4j': [
+          'api': "org.slf4j:slf4j-api:${versions.slf4j}",
+          'jdk14': "org.slf4j:slf4j-jdk14:${versions.slf4j}",
+      ],
+      'guava': "com.google.guava:guava:27.0.1-jre",
+      'gson': "com.google.code.gson:gson:2.8.5",
+      'servlet': "javax.servlet:javax.servlet-api:3.1.0",
+      'junit': "junit:junit:4.12",
+      'wire': [
+          'compiler': "com.squareup.wire:wire-compiler:${versions.wire}",
+          'gson': "com.squareup.wire:wire-gson-support:${versions.wire}",
+          'runtime': "com.squareup.wire:wire-runtime:${versions.wire}",
+          'schema': "com.squareup.wire:wire-schema:${versions.wire}",
+      ],
+  ]
+}
+
+repositories {
+  jcenter()
+  maven {
+    url 'https://oss.sonatype.org/content/repositories/snapshots/'
+  }
+}
+
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+// Generates 'build/js/echo.js'. Adds 'generateJavascriptServices' task.
+apply plugin: 'co.present.rpc.compiler'
+
+dependencies {
+  compile 'com.google.appengine:appengine-api-1.0-sdk:+'  // Latest App Engine Api's
+  compile 'javax.servlet:javax.servlet-api:3.1.0'
+  compile deps.slf4j.api
+
+  implementation deps.guava
+  implementation deps.gson
+  implementation deps.wire.runtime
+  implementation 'com.googlecode.objectify:objectify:5.1.22'
+
+  testImplementation deps.junit
+  testImplementation deps.slf4j.jdk14
+}
+
+group = 'co.present'
+version = '0.1-SNAPSHOT'
+
+repositories {
+  jcenter()
+}
+
+task sourcesJar(type: Jar) {
+  from sourceSets.main.allJava
+  archiveClassifier = 'sources'
+}
+
+
+task javadocJar(type: Jar) {
+  from javadoc
+  archiveClassifier = 'javadoc'
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      artifactId = 'engine'
+      from components.java
+      artifact sourcesJar
+      artifact javadocJar
+      versionMapping {
+        usage('java-api') {
+          fromResolutionOf('runtimeClasspath')
+        }
+        usage('java-runtime') {
+          fromResolutionResult()
+        }
+      }
+      pom {
+        name = 'Present Engine'
+        description = 'App Engine support libraries'
+        url = 'http://github.com/presentco/present-engine'
+        licenses {
+          license {
+            name = 'The Apache License, Version 2.0'
+            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+          }
+        }
+        developers {
+          developer {
+            id = 'present'
+            name = 'Present Company'
+            email = 'hello@present.co'
+          }
+        }
+        scm {
+          connection = 'scm:git:git@github.com:presentco/present-engine.git'
+          developerConnection = 'scm:git:git@github.com:presentco/present-engine.git'
+          url = 'http://github.com/presentco/present-engine'
+        }
+      }
+    }
+  }
+  repositories {
+    maven {
+      def releasesRepoUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+      def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
+      url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+      credentials {
+        // Using findProperty() avoids breaking the build when these properties are missing.
+        username findProperty('sonatypeUsername')
+        password findProperty('sonatypePassword')
+      }
+    }
+  }
+}
+
+signing {
+  sign publishing.publications.mavenJava
+}
+
+javadoc {
+  if (JavaVersion.current().isJava9Compatible()) {
+    options.addBooleanOption('html5', true)
+  }
+
+  // Suppress warnings
+  options.addStringOption('Xdoclint:none', '-quiet')
+}

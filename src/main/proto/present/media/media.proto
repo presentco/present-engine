@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package present.media;
+
+service MediaService {
+  // Uploads media.
+  rpc putMedia(PutMediaRequest) returns (MediaResponse);
+}
+
+message PutMediaRequest {
+  // ID for the media
+  string uuid = 1;
+
+  // MIME type
+  string type = 2;
+
+  // The content bytes, or a base-64 encoded string if JSON
+  bytes bytes = 3;
+}
+
+// Describes downloadable media
+message MediaResponse {
+  string uuid = 1;
+
+  // MIME type
+  string type = 2;
+
+  // URL where the media can be downloaded
+  string url = 3;
+}
