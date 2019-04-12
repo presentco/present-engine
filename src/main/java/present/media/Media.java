@@ -46,22 +46,22 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
   public String type;
 
   /** Public GCS URL. */
-  public String originalUrl;
+  public String url;
 
   /** Optional Google image serving URL (https://stackoverflow.com/a/25438197/300162). */
-  public String googleUrl;
+  public String imageUrl;
 
   /** ID of user who uploaded the content. */
   public String uploadedBy;
 
   public MediaResponse toResponse() {
-    return new MediaResponse(uuid, type, googleUrl);
+    return new MediaResponse(uuid, type, url());
   }
 
   /** Returns the public URL for the media. */
   public String url() {
-    if (googleUrl != null) return googleUrl;
-    return originalUrl;
+    if (imageUrl != null) return imageUrl;
+    return url;
   }
 
   @Override protected Media getThis() {
@@ -103,7 +103,7 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
 
     // Upload file to GCS.
     Stopwatch stopwatch = Stopwatch.createStarted();
-    String path = "media/" + uuid + "." + Type.extensionFor(type);
+    String path = "media/" + uuid + Type.extensionFor(type);
     GcsFilename gcsFile = new GcsFilename(AppEngine.applicationId(), path);
     GcsService gcsService = GcsServiceFactory.createGcsService();
     GcsFileOptions options = new GcsFileOptions.Builder()
@@ -121,15 +121,15 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
     Media media = new Media();
     media.uuid = uuid;
     media.type = type;
-    media.originalUrl = urlFor(gcsFile);
+    media.url = urlFor(gcsFile);
     media.uploadedBy = userId;
 
     // Serve images using Google Images Service.
     if (!AppEngine.isDevelopment() && Type.isImage(type)) {
       stopwatch.start();
-      media.googleUrl = ImagesServiceFactory.getImagesService().getServingUrl(
+      media.imageUrl = ImagesServiceFactory.getImagesService().getServingUrl(
           ServingUrlOptions.Builder.withGoogleStorageFileName(
-              "/gs" + URI.create(media.originalUrl).getRawPath()).secureUrl(true));
+              "/gs" + URI.create(media.url).getRawPath()).secureUrl(true));
       logger.info("Got serving URL in {}.", stopwatch);
     }
 
