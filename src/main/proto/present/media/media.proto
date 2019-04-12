@@ -4,10 +4,10 @@ package present.media;
 
 service MediaService {
   // Uploads media.
-  rpc putMedia(PutMediaRequest) returns (MediaResponse);
+  rpc upload(UploadRequest) returns (MediaResponse);
 }
 
-message PutMediaRequest {
+message UploadRequest {
   // ID for the media
   string uuid = 1;
 

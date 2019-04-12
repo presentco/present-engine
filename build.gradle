@@ -54,13 +54,17 @@ dependencies {
   compile 'javax.servlet:javax.servlet-api:3.1.0'
   compile deps.slf4j.api
 
+  implementation 'co.present.rpc:server:0.2-SNAPSHOT'
   implementation deps.guava
   implementation deps.gson
   implementation deps.wire.runtime
   implementation 'com.googlecode.objectify:objectify:5.1.22'
+  implementation 'com.google.appengine.tools:appengine-gcs-client:0.8'
 
   testImplementation deps.junit
   testImplementation deps.slf4j.jdk14
+  testImplementation 'com.google.appengine:appengine-testing:+'
+  testImplementation 'com.google.appengine:appengine-api-stubs:+'
 }
 
 group = 'co.present'

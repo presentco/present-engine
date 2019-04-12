@@ -64,7 +64,7 @@ public abstract class AbstractEntity<T extends AbstractEntity<T>> {
     String project = AppEngine.applicationId();
     String consoleBaseUrl = "https://console.cloud.google.com/datastore/entities/edit";
     return consoleBaseUrl + "?key=" + key.toWebSafeString() + "&project=" + project
-        + "&kind=" + key.getKind() + "&authuser=1";
+        + "&kind=" + key.getKind();
   }
 
   public boolean inTransaction(Updater<T> updater) {
