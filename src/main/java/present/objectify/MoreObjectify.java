@@ -39,6 +39,26 @@ public class MoreObjectify {
   private MoreObjectify() {}
 
   /**
+   * Looks up an entity by ID. Atomically creates a new one if necessary.
+   */
+  public static <T> T getOrCreate(Key<T> key, Supplier<T> creator) {
+    // Try outside of a transaction first.
+    T entity = ofy().load().key(key).now();
+    if (entity != null) return entity;
+    return getOrCreateInTransaction(key, creator);
+  }
+
+  private static <T> T getOrCreateInTransaction(Key<T> key, Supplier<T> creator) {
+    return ofy().transact(() -> {
+      T entity = ofy().load().key(key).now();
+      if (entity != null) return entity;
+      entity = creator.get();
+      ofy().save().entity(entity);
+      return entity;
+    });
+  }
+
+  /**
    * Saves the entities if they don't already exist in the datastore. Not transactional!
    *
    * @return the entities that were saved
