@@ -59,8 +59,10 @@ dependencies {
   implementation deps.guava
   implementation deps.gson
   implementation deps.wire.runtime
+
   implementation 'com.googlecode.objectify:objectify:5.1.22'
   implementation 'com.google.appengine.tools:appengine-gcs-client:0.8'
+  implementation 'com.google.appengine:appengine-remote-api:+'
 
   testImplementation deps.junit
   testImplementation deps.slf4j.jdk14
