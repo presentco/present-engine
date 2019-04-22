@@ -16,6 +16,11 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import okio.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +59,9 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
   /** ID of user who uploaded the content. */
   public String uploadedBy;
 
+  /** URL from where the media came. */
+  public String sourceUrl;
+
   public MediaResponse toResponse() {
     return new MediaResponse(uuid, type, url());
   }
@@ -76,22 +84,36 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
    * Uploads media to GCS and creates a corresponding Media entity.
    */
   public static Media upload(String uuid, String type, ByteString bytes) throws IOException {
-    return upload(uuid, type, bytes.asByteBuffer());
+    return upload(uuid, type, bytes.asByteBuffer(), null);
   }
+
+  private static OkHttpClient client = new OkHttpClient();
 
   /**
-   * Uploads media to GCS and creates a corresponding Media entity.
+   * Copies media from another URL.
    */
-  public static Media upload(String uuid, String type, URL source) throws IOException {
+  public static Media copy(String uuid, String sourceUrl) throws IOException {
     Stopwatch stopwatch = Stopwatch.createStarted();
-    ByteBuffer bytes = ByteBuffer.wrap(Resources.toByteArray(source));
-    logger.info("Downloaded {} in {}.", source, stopwatch);
-    return upload(uuid, type, bytes);
+    Request request = new Request.Builder().url(sourceUrl).build();
+    String type;
+    byte[] bytes;
+    try (Response response = client.newCall(request).execute()) {
+      if (!response.isSuccessful()) {
+        throw new IOException(response.code() + ": " + response.message());
+      }
+      ResponseBody body = response.body();
+      type = body.contentType().toString();
+      bytes = body.bytes();
+    }
+    logger.info("Downloaded {} in {}.", sourceUrl, stopwatch);
+    return upload(uuid, type, ByteBuffer.wrap(bytes), sourceUrl);
   }
 
-  private static Media upload(String uuid, String type, ByteBuffer bytes) throws IOException {
+  private static Media upload(String uuid, String type, ByteBuffer bytes, String sourceUrl)
+      throws IOException {
     Media existing = load(uuid);
     String userId = CurrentUser.id();
+    if (userId == null) throw new ClientException("Unauthorized");
 
     // Check if the file was already uploaded.
     if (existing != null) {
@@ -123,6 +145,7 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
     media.type = type;
     media.url = urlFor(gcsFile);
     media.uploadedBy = userId;
+    media.sourceUrl = sourceUrl;
 
     // Serve images using Google Images Service.
     if (!AppEngine.isDevelopment() && Type.isImage(type)) {

@@ -55,6 +55,7 @@ dependencies {
   compile deps.slf4j.api
 
   implementation 'co.present.rpc:server:0.2-SNAPSHOT'
+  implementation deps.okhttp
   implementation deps.guava
   implementation deps.gson
   implementation deps.wire.runtime

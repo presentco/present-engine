@@ -5,6 +5,9 @@ package present.media;
 service MediaService {
   // Uploads media.
   rpc upload(UploadRequest) returns (MediaResponse);
+
+  // Copies media from another URL.
+  rpc copy(CopyRequest) returns (MediaResponse);
 }
 
 message UploadRequest {
@@ -16,6 +19,14 @@ message UploadRequest {
 
   // The content bytes, or a base-64 encoded string if JSON
   bytes bytes = 3;
+}
+
+message CopyRequest {
+  // ID for the media
+  string uuid = 1;
+
+  // Source URL.
+  string url = 2;
 }
 
 // Describes downloadable media
