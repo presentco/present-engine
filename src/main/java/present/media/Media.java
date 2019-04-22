@@ -7,16 +7,13 @@ import com.google.appengine.tools.cloudstorage.GcsFilename;
 import com.google.appengine.tools.cloudstorage.GcsService;
 import com.google.appengine.tools.cloudstorage.GcsServiceFactory;
 import com.google.common.base.Stopwatch;
-import com.google.common.io.Resources;
 import com.googlecode.objectify.ObjectifyService;
 import com.googlecode.objectify.annotation.Cache;
 import com.googlecode.objectify.annotation.Entity;
 import com.googlecode.objectify.annotation.Id;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URL;
 import java.nio.ByteBuffer;
-import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -84,7 +81,8 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
    * Uploads media to GCS and creates a corresponding Media entity.
    */
   public static Media upload(String uuid, String type, ByteString bytes) throws IOException {
-    return upload(uuid, type, bytes.asByteBuffer(), null);
+    CopySupplier supplier = () -> new Copy(type, bytes.asByteBuffer(), null);
+    return upload(uuid, supplier);
   }
 
   private static OkHttpClient client = new OkHttpClient();
@@ -93,24 +91,28 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
    * Copies media from another URL.
    */
   public static Media copy(String uuid, String sourceUrl) throws IOException {
-    Stopwatch stopwatch = Stopwatch.createStarted();
-    Request request = new Request.Builder().url(sourceUrl).build();
-    String type;
-    byte[] bytes;
-    try (Response response = client.newCall(request).execute()) {
-      if (!response.isSuccessful()) {
-        throw new IOException(response.code() + ": " + response.message());
+    CopySupplier supplier = () -> {
+      Stopwatch stopwatch = Stopwatch.createStarted();
+      Request request = new Request.Builder().url(sourceUrl).build();
+      String type;
+      byte[] bytes;
+      try (Response response = client.newCall(request).execute()) {
+        if (!response.isSuccessful()) {
+          throw new IOException(response.code() + ": " + response.message());
+        }
+        ResponseBody body = response.body();
+        type = body.contentType().toString();
+        bytes = body.bytes();
       }
-      ResponseBody body = response.body();
-      type = body.contentType().toString();
-      bytes = body.bytes();
-    }
-    logger.info("Downloaded {} in {}.", sourceUrl, stopwatch);
-    return upload(uuid, type, ByteBuffer.wrap(bytes), sourceUrl);
+      logger.info("Downloaded {} in {}.", sourceUrl, stopwatch);
+
+      return new Copy(type, ByteBuffer.wrap(bytes), sourceUrl);
+    };
+
+    return upload(uuid, supplier);
   }
 
-  private static Media upload(String uuid, String type, ByteBuffer bytes, String sourceUrl)
-      throws IOException {
+  private static Media upload(String uuid, CopySupplier supplier) throws IOException {
     Media existing = load(uuid);
     String userId = CurrentUser.id();
     if (userId == null) throw new ClientException("Unauthorized");
@@ -123,32 +125,34 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
       return existing;
     }
 
+    Copy copy = supplier.get();
+
     // Upload file to GCS.
     Stopwatch stopwatch = Stopwatch.createStarted();
-    String path = "media/" + uuid + Type.extensionFor(type);
+    String path = "media/" + uuid + Type.extensionFor(copy.type);
     GcsFilename gcsFile = new GcsFilename(AppEngine.applicationId(), path);
     GcsService gcsService = GcsServiceFactory.createGcsService();
     GcsFileOptions options = new GcsFileOptions.Builder()
         .acl("public_read")
-        .mimeType(type)
+        .mimeType(copy.type)
         .build();
     gcsService.createOrReplace(
         gcsFile,
         options,
-        bytes);
+        copy.bytes);
     logger.info("Uploaded {} in {}.", gcsFile, stopwatch);
     stopwatch.reset();
 
     // Create entity.
     Media media = new Media();
     media.uuid = uuid;
-    media.type = type;
+    media.type = copy.type;
     media.url = urlFor(gcsFile);
     media.uploadedBy = userId;
-    media.sourceUrl = sourceUrl;
+    media.sourceUrl = copy.url;
 
     // Serve images using Google Images Service.
-    if (!AppEngine.isDevelopment() && Type.isImage(type)) {
+    if (!AppEngine.isDevelopment() && Type.isImage(copy.type)) {
       stopwatch.start();
       media.imageUrl = ImagesServiceFactory.getImagesService().getServingUrl(
           ServingUrlOptions.Builder.withGoogleStorageFileName(
@@ -160,11 +164,34 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
     return media;
   }
 
+  /** In-memory copy of the media. */
+  static class Copy {
+    final String type;
+    final ByteBuffer bytes;
+    final String url;
+
+    Copy(String type, ByteBuffer bytes, String sourceUrl) {
+      this.type = type;
+      this.bytes = bytes;
+      this.url = sourceUrl;
+    }
+  }
+
+  /** Supplies in-memory copies. */
+  interface CopySupplier {
+    Copy get() throws IOException;
+  }
+
   /** Returns the public URL for the given GCS file name. */
   private static String urlFor(GcsFilename file) {
     String path = file.getObjectName();
     if (AppEngine.isDevelopment()) return "http://localhost:8081/gcs/" + path;
     return "https://storage-download.googleapis.com/" + file.getBucketName() + "/" + path;
+  }
+
+  /** Explicitly registers Media entity with Objectify. */
+  public static void initialize() {
+    /* Ensures static initializer ran. */
   }
 
   public static final class Type {
