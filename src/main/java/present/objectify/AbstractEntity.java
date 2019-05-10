@@ -5,6 +5,7 @@ import com.googlecode.objectify.Key;
 import com.googlecode.objectify.ObjectifyService;
 import com.googlecode.objectify.Result;
 import com.googlecode.objectify.annotation.Ignore;
+import com.googlecode.objectify.annotation.OnLoad;
 import com.googlecode.objectify.annotation.OnSave;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -17,22 +18,29 @@ import present.engine.AppEngine;
  */
 public abstract class AbstractEntity<T extends AbstractEntity<T>> {
 
-  // Create time: Set when entity instantiated.
+  /** Create time: Set when entity instantiated. */
   public long createdTime = now();
 
-  // Update time: Set on entity save() or delete().
+  /** Update time: Set on entity save() or delete() */
   public long updatedTime;
 
-  // Deleted flag.
+  /** Deleted time */
   public Long deletedTime;
+
+  /** True if the entity was just created and has not been persisted yet. */
+  @Ignore public boolean nascent = true;
 
   /** Saves this entity. */
   public Result<Key<T>> save() {
     return ObjectifyService.ofy().save().entity(getThis());
   }
 
-  @OnSave public void onSave() {
+  @OnSave private void updateTime() {
     this.updatedTime = now();
+  }
+
+  @OnLoad private void removeNascent() {
+    this.nascent = false;
   }
 
   /** Sets {@link #deletedTime}. */

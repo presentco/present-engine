@@ -23,7 +23,7 @@ public class CurrentUser {
    */
   public static String id() {
     if (idSupplier == null) {
-      throw new IllegalStateException("Call Media.setUserIdSupplier() first.");
+      throw new IllegalStateException("Call CurrentUser.setIdSupplier() first.");
     }
     return idSupplier.get();
   }

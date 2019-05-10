@@ -25,8 +25,9 @@ public class Uuids {
       "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
 
   /** Verifies that the given string is formatted as a UUID. */
-  public static void validate(String uuid) {
+  public static String validate(String uuid) {
     if (!isValid(uuid)) throw new ClientException("Invalid UUID: " + uuid);
+    return uuid;
   }
 
   /** Verifies that the given string is formatted as a UUID. */

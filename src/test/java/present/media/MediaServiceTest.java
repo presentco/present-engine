@@ -42,6 +42,9 @@ public class MediaServiceTest {
     CurrentUser.setIdSupplier(() -> Uuids.NULL);
     Media media = Media.upload(Uuids.NULL, "image/jpeg",
         ByteString.of(ByteStreams.toByteArray(getClass().getResourceAsStream("/test.png"))));
+    assertEquals("image/png", media.type);
+    assertEquals(128, (int) media.width);
+    assertEquals(128, (int) media.height);
     System.out.println(media.url());
   }
 
@@ -50,6 +53,9 @@ public class MediaServiceTest {
     String url = "https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png";
     Media media = Media.copy(Uuids.NULL, url);
     assertEquals(url, media.sourceUrl);
+    assertEquals("image/png", media.type);
+    assertEquals(128, (int) media.width);
+    assertEquals(128, (int) media.height);
     System.out.println(media.url());
   }
 }

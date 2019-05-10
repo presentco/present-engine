@@ -1,5 +1,6 @@
 package present.media;
 
+import com.google.appengine.api.images.Image;
 import com.google.appengine.api.images.ImagesServiceFactory;
 import com.google.appengine.api.images.ServingUrlOptions;
 import com.google.appengine.tools.cloudstorage.GcsFileOptions;
@@ -59,8 +60,14 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
   /** URL from where the media came. */
   public String sourceUrl;
 
+  /** Width in pixels. */
+  public Integer width;
+
+  /** Height in pixels. */
+  public Integer height;
+
   public MediaResponse toResponse() {
-    return new MediaResponse(uuid, type, url());
+    return new MediaResponse(uuid, type, url(), width, height);
   }
 
   /** Returns the public URL for the media. */
@@ -81,7 +88,7 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
    * Uploads media to GCS and creates a corresponding Media entity.
    */
   public static Media upload(String uuid, String type, ByteString bytes) throws IOException {
-    CopySupplier supplier = () -> new Copy(type, bytes.asByteBuffer(), null);
+    CopySupplier supplier = () -> new Copy(type, bytes.toByteArray(), null);
     return upload(uuid, supplier);
   }
 
@@ -106,7 +113,7 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
       }
       logger.info("Downloaded {} in {}.", sourceUrl, stopwatch);
 
-      return new Copy(type, ByteBuffer.wrap(bytes), sourceUrl);
+      return new Copy(type, bytes, sourceUrl);
     };
 
     return upload(uuid, supplier);
@@ -139,7 +146,7 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
     gcsService.createOrReplace(
         gcsFile,
         options,
-        copy.bytes);
+        ByteBuffer.wrap(copy.bytes));
     logger.info("Uploaded {} in {}.", gcsFile, stopwatch);
     stopwatch.reset();
 
@@ -150,6 +157,8 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
     media.url = urlFor(gcsFile);
     media.uploadedBy = userId;
     media.sourceUrl = copy.url;
+    media.width = copy.width;
+    media.height = copy.height;
 
     // Serve images using Google Images Service.
     if (!AppEngine.isDevelopment() && Type.isImage(copy.type)) {
@@ -167,13 +176,38 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
   /** In-memory copy of the media. */
   static class Copy {
     final String type;
-    final ByteBuffer bytes;
+    final byte[] bytes;
     final String url;
+    final Integer width;
+    final Integer height;
 
-    Copy(String type, ByteBuffer bytes, String sourceUrl) {
-      this.type = type;
+    Copy(String type, byte[] bytes, String sourceUrl) {
       this.bytes = bytes;
       this.url = sourceUrl;
+
+      // Determine image format, width, and height.
+      Image image = makeImage(bytes);
+      if (image == null) {
+        this.type = type;
+        this.width = null;
+        this.height = null;
+      } else {
+        // Use the detected type. Don't trust the external type.
+        this.type = Type.typeFor(image.getFormat());
+        this.width = image.getWidth();
+        this.height = image.getHeight();
+      }
+    }
+  }
+
+  static Image makeImage(byte[] bytes) {
+    try {
+      Image image = ImagesServiceFactory.makeImage(bytes);
+      String type = Type.typeFor(image.getFormat());
+      if (type == null) return null;
+      return image;
+    } catch (IllegalArgumentException e) {
+      return null;
     }
   }
 
@@ -210,6 +244,16 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
         case WEBP:
           return true;
         default: return false;
+      }
+    }
+
+    private static String typeFor(Image.Format format) {
+      switch (format) {
+        case JPEG: return JPEG;
+        case PNG: return PNG;
+        case GIF: return GIF;
+        case WEBP: return WEBP;
+        default: return null;
       }
     }
 

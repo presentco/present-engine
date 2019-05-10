@@ -38,4 +38,10 @@ message MediaResponse {
 
   // URL where the media can be downloaded
   string url = 3;
+
+  // Width in pixels
+  uint32 width = 4;
+
+  // Height in pixels
+  uint32 height = 5;
 }
